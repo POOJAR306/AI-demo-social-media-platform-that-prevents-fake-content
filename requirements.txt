@@ -1,0 +1,32 @@
+# Core ML + Deep Learning
+torch>=2.0
+torchvision>=0.15
+torchaudio>=2.0
+
+# HuggingFace Transformers for NLP
+transformers>=4.50
+
+# OpenAI Whisper (Audio Transcription)
+git+https://github.com/openai/whisper.git
+
+# OpenCV for image/video handling
+opencv-python-headless>=4.8
+Pillow>=10.0
+
+# NLP & Text Processing
+scikit-learn>=1.3
+nltk>=3.8
+
+# Utilities
+numpy>=1.26
+pandas>=2.1
+requests>=2.31
+tqdm>=4.65
+joblib>=1.3
+
+# PDF & Report Generation
+reportlab>=4.0
+
+# Flask (Backend)
+Flask>=2.3
+Werkzeug>=2.3

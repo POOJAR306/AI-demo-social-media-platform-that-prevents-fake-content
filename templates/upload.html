@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Upload - Demo Social Media</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(-45deg, #4f46e5, #9333ea, #6d28d9, #3b82f6);
+      background-size: 400% 400%;
+      animation: gradientBG 12s ease infinite;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    @keyframes gradientBG {
+      0% {background-position:0% 50%;}
+      50% {background-position:100% 50%;}
+      100% {background-position:0% 50%;}
+    }
+    .navbar { background: rgba(255,255,255,0.95); backdrop-filter: blur(6px); }
+    .navbar-brand { font-weight: 700; color: #4f46e5 !important; }
+    .btn-primary { background: linear-gradient(270deg, #4f46e5, #9333ea); border: none; border-radius: 12px; width: 100%; color: #fff; }
+    .card { border-radius: 16px; padding: 1.5rem; }
+    .preview-img { max-height: 120px; max-width: 200px; margin-top: 1rem; display: block; border-radius: 12px; }
+    .audio-preview { margin-top: 1rem; display: none; width: 100%; }
+    .text-preview { margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 12px; display: none; white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg">
+    <div class="container">
+      <a class="navbar-brand" href="/">Demo Social Media</a>
+      <div>
+        <a class="btn btn-sm btn-outline-success" href="/feed">Feed</a>
+        <a class="btn btn-sm btn-outline-danger" href="/blocked">Blocked</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat,msg in messages %}
+          <div class="alert alert-{{cat}}">{{msg}}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <h5 class="card-title">Upload Content</h5>
+          <form method="POST" enctype="multipart/form-data" id="uploadForm">
+            <div class="mb-3">
+              <label class="form-label">Content Type</label>
+              <select class="form-select" name="content_type" id="ctype" required>
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+                <option value="audio">Audio</option>
+                <option value="text">Text</option>
+              </select>
+            </div>
+
+            <div class="mb-3 file-field">
+              <label class="form-label">Upload File</label>
+              <input class="form-control" type="file" name="file" id="fileInput" accept="image/*,video/*,audio/*">
+            </div>
+
+            <div class="mb-3 text-field d-none">
+              <label class="form-label">Text Content</label>
+              <textarea name="text_content" class="form-control" placeholder="Enter text here"></textarea>
+            </div>
+
+            <button class="btn btn-primary" type="submit">Upload & Check</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card card-preview shadow-sm p-3">
+          <h6>Preview</h6>
+          <p class="small text-muted">Preview content. Blocked content will appear in the Blocked section with report.</p>
+          <img id="imgPreview" class="d-none preview-img" alt="Image Preview">
+          <audio id="audioPreview" class="audio-preview" controls></audio>
+          <div id="textPreview" class="text-preview"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ctype = document.getElementById('ctype');
+    const fileField = document.querySelector('.file-field');
+    const textField = document.querySelector('.text-field');
+    const fileInput = document.getElementById('fileInput');
+    const imgPreview = document.getElementById('imgPreview');
+    const audioPreview = document.getElementById('audioPreview');
+    const textPreview = document.getElementById('textPreview');
+    const textarea = textField.querySelector('textarea');
+
+    function updateFields(){
+      if(ctype.value === 'text'){
+        fileField.classList.add('d-none');
+        textField.classList.remove('d-none');
+        imgPreview.classList.add('d-none');
+        audioPreview.style.display = 'none';
+        textPreview.style.display = 'block';
+        textPreview.textContent = textarea.value;
+      } else {
+        fileField.classList.remove('d-none');
+        textField.classList.add('d-none');
+        imgPreview.classList.add('d-none');
+        audioPreview.style.display = 'none';
+        textPreview.style.display = 'none';
+      }
+    }
+
+    ctype.addEventListener('change', updateFields);
+    textarea.addEventListener('input', () => {
+      if(ctype.value === 'text'){
+        textPreview.textContent = textarea.value;
+      }
+    });
+    updateFields();
+
+    fileInput.addEventListener('change', function() {
+      const file = this.files[0];
+      if(!file) return;
+
+      if(file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          imgPreview.src = e.target.result;
+          imgPreview.classList.remove('d-none');
+          audioPreview.style.display = 'none';
+          textPreview.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+
+      } else if(file.type.startsWith('audio/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          audioPreview.src = e.target.result;
+          audioPreview.style.display = 'block';
+          imgPreview.classList.add('d-none');
+          textPreview.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+
+      } else {
+        imgPreview.classList.add('d-none');
+        audioPreview.style.display = 'none';
+        textPreview.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

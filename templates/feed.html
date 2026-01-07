@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feed - Demo Social Media</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background: #f8fafc; font-family: 'Poppins', sans-serif; margin:0; padding:0; }
+.navbar { background: #fff; box-shadow:0 1px 5px rgba(0,0,0,0.1); }
+.navbar-brand { font-weight:700; color:#3b82f6; font-size:1.6rem; }
+.feed-container { max-width:1100px; margin:1.5rem auto; padding:0 1rem; }
+.posts-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:12px; }
+
+.post { position:relative; aspect-ratio:1/1; overflow:hidden; border-radius:10px; background:#000; cursor:pointer; transition: transform 0.2s; }
+.post:hover { transform:scale(1.02); }
+.post img, .post video { width:100%; height:100%; object-fit:cover; }
+.post.audio { background: linear-gradient(135deg,#3b82f6,#9333ea); display:flex; justify-content:center; align-items:center; color:#fff; font-weight:600; font-size:1.2rem; }
+.post.text { background: linear-gradient(135deg,#f59e0b,#ef4444); display:flex; justify-content:center; align-items:center; color:#fff; font-weight:600; font-size:1.1rem; padding:1rem; text-align:center; border-radius:10px; }
+
+.fullscreen-view { position:fixed; top:0; left:0; width:100%; height:100%; display:none; justify-content:center; align-items:center; background:#000; z-index:9999; overflow:hidden; }
+.fullscreen-container { width:100%; height:100%; overflow-y:scroll; scroll-snap-type:y mandatory; }
+.fullscreen-post { scroll-snap-align:start; height:100vh; width:100%; display:flex; justify-content:center; align-items:center; flex-direction:row; position:relative; color:#fff; }
+.fullscreen-media { width:65%; height:100vh; display:flex; justify-content:center; align-items:center; position:relative; }
+.fullscreen-media img, .fullscreen-media video { width:100%; height:90vh; object-fit:contain; }
+.comment-panel { width:35%; height:100vh; background: rgba(255,255,255,0.05); backdrop-filter:blur(8px); display:flex; flex-direction:column; justify-content:space-between; padding:1rem; border-left:1px solid rgba(255,255,255,0.1); }
+.comment-panel h5 { color:#fff; margin-bottom:.8rem; }
+.comments-list { flex-grow:1; overflow-y:auto; color:#eee; font-size:0.9rem; margin-bottom:.8rem; }
+.comment-input { display:flex; gap:.4rem; }
+.comment-input input { flex:1; border-radius:20px; border:none; padding:.4rem .8rem; font-size:.9rem; }
+.comment-input button { border:none; background:#3b82f6; color:#fff; border-radius:50%; width:36px; height:36px; cursor:pointer; }
+.like-section { display:flex; align-items:center; gap:10px; margin-bottom:.8rem; }
+.btn-like { background:none; border:none; font-size:1.6rem; color:#ef4444; cursor:pointer; transition:.2s; }
+.like-count-fullscreen { font-size:.9rem; color:#ccc; }
+.close-btn { position:fixed; top:20px; right:25px; font-size:2rem; color:white; cursor:pointer; z-index:10000; }
+.double-like { position:absolute; font-size:5rem; color:rgba(255,0,0,0.8); animation:likePop 0.6s ease; pointer-events:none; }
+@keyframes likePop { 0%{transform:scale(0); opacity:0;} 50%{transform:scale(1.2); opacity:1;} 100%{transform:scale(1); opacity:0;} }
+@media(max-width:900px){ .fullscreen-post{flex-direction:column;} .fullscreen-media,.comment-panel{width:100%; height:auto;} .comment-panel{border-left:none; border-top:1px solid rgba(255,255,255,0.1);} }
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg px-3">
+<a class="navbar-brand" href="/">Demo Social Media</a>
+<div class="ms-auto">
+<a class="btn btn-sm btn-outline-primary me-2" href="/upload">Upload</a>
+<a class="btn btn-sm btn-outline-secondary" href="/blocked">Blocked</a>
+</div>
+</nav>
+
+<div class="feed-container">
+<div class="posts-grid">
+{% for post in posts %}
+<div class="post {{ post.type }}" 
+     data-id="{{ post.id }}" 
+     data-file="{% if post.filename %}{{ url_for('uploaded_file', filename=post.filename) }}{% endif %}" 
+     data-text="{{ post.text or '' }}" 
+     data-type="{{ post.type }}">
+    {% if post.type == 'image' %}
+        <img src="{{ url_for('uploaded_file', filename=post.filename) }}" alt="Image">
+    {% elif post.type == 'video' %}
+        <video muted autoplay loop playsinline>
+            <source src="{{ url_for('uploaded_file', filename=post.filename) }}">
+        </video>
+    {% elif post.type == 'audio' %}
+        🎵 Audio Post
+    {% elif post.type == 'text' %}
+        📝 {{ post.text }}
+    {% endif %}
+</div>
+{% endfor %}
+</div>
+</div>
+
+<div id="fullscreenView" class="fullscreen-view">
+<span class="close-btn">&times;</span>
+<div id="fullscreenContainer" class="fullscreen-container"></div>
+</div>
+
+<script>
+const posts = Array.from(document.querySelectorAll('.post'));
+const fullscreen = document.getElementById('fullscreenView');
+const container = document.getElementById('fullscreenContainer');
+
+// Open fullscreen on click
+posts.forEach((p, idx) => p.addEventListener('click', () => openFullscreen(idx)));
+
+// Delete function
+function deletePost(postId){
+    if(!confirm('Are you sure you want to delete this post?')) return;
+    fetch(`/delete/${postId}`, { method:'DELETE' })
+    .then(res=>res.json()).then(data=>{
+        if(data.success){
+            alert('Post deleted!');
+            const feedPost = document.querySelector(`.post[data-id="${postId}"]`);
+            if(feedPost) feedPost.remove();
+            const fsPost = Array.from(document.querySelectorAll('.fullscreen-post')).find(p=>p.querySelector(`button[onclick="submitComment('${postId}')"]`));
+            if(fsPost) fsPost.remove();
+        } else alert('Delete failed');
+    });
+}
+
+// Open fullscreen view with like/comment only
+async function openFullscreen(startIndex){
+    container.innerHTML='';
+    for(const [idx, postEl] of posts.entries()){
+        const type=postEl.dataset.type;
+        const file=postEl.dataset.file || '';
+        const text=postEl.dataset.text || '';
+        const postId=postEl.dataset.id;
+        let postData={likes:0, comments:[]};
+        try{ const r=await fetch(`/api/post/${postId}`); if(r.ok) postData=await r.json(); }catch(e){}
+
+        let mediaHTML='';
+        if(type==='image') mediaHTML=`<img src="${file}" alt="">`;
+        else if(type==='video') mediaHTML=`<video controls loop><source src="${file}"></video>`;
+        else if(type==='audio') mediaHTML=`<audio controls><source src="${file}"></audio>`;
+        else mediaHTML=`<div style="color:#fff;font-size:1.3rem;text-align:center;">${text}</div>`;
+
+        const postBlock=document.createElement('div');
+        postBlock.className='fullscreen-post';
+        postBlock.innerHTML=`
+        <div class="fullscreen-media">${mediaHTML}</div>
+        <div class="comment-panel">
+            <div>
+                <div class="like-section">
+                    <button class="btn-like" data-post="${postId}">❤️</button>
+                    <div class="like-count-fullscreen" id="likes-${postId}">${postData.likes} likes</div>
+                </div>
+                <h5>Comments</h5>
+                <div class="comments-list" id="comments-${postId}">
+                    ${Array.isArray(postData.comments)?postData.comments.map(c=>`<div><strong>${c.user||'Anonymous'}</strong> ${c.text} <small style="color:#bbb;">• ${new Date(c.time*1000).toLocaleString()}</small></div>`).join('') : ''}
+                </div>
+            </div>
+            <div class="comment-input">
+                <input id="comment-input-${postId}" type="text" placeholder="Add a comment...">
+                <button onclick="submitComment('${postId}')">➤</button>
+            </div>
+            <button class="btn btn-sm btn-danger mt-2" onclick="deletePost('${postId}')">Delete Post</button>
+        </div>
+        `;
+        container.appendChild(postBlock);
+
+        const likeBtn=postBlock.querySelector('.btn-like');
+        const mediaEl=postBlock.querySelector('.fullscreen-media');
+
+        likeBtn.addEventListener('click', async ()=>{
+            const resp=await fetch(`/like/${postId}`, { method:'POST' });
+            if(resp.ok){
+                const j=await resp.json();
+                document.getElementById(`likes-${postId}`).innerText=`${j.likes} likes`;
+            }
+        });
+
+        mediaEl.addEventListener('dblclick', async ()=>{
+            const resp=await fetch(`/like/${postId}`, { method:'POST' });
+            if(resp.ok){
+                const j=await resp.json();
+                document.getElementById(`likes-${postId}`).innerText=`${j.likes} likes`;
+                const pop=document.createElement('div');
+                pop.className='double-like';
+                pop.innerHTML='<i class="bi bi-heart-fill"></i>';
+                mediaEl.appendChild(pop);
+                setTimeout(()=>pop.remove(),700);
+            }
+        });
+    }
+    fullscreen.style.display='flex';
+    container.scrollTo({ top:startIndex*window.innerHeight, behavior:'instant' });
+}
+
+// Submit comment
+function submitComment(postId){
+    const input=document.getElementById(`comment-input-${postId}`);
+    const text=input.value.trim();
+    if(!text) return;
+    fetch(`/comment/${postId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ comment:text }) })
+    .then(res=>res.json())
+    .then(j=>{
+        if(j.success){
+            document.getElementById(`comments-${postId}`).innerHTML=j.comments.map(c=>`<div><strong>${c.user||'Anonymous'}</strong> ${c.text} <small style="color:#bbb;">• ${new Date(c.time*1000).toLocaleString()}</small></div>`).join('');
+        }
+    });
+}
+
+document.querySelector('.close-btn').onclick=()=>fullscreen.style.display='none';
+</script>
+
+</body>
+</html>
